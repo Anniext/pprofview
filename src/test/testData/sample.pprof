@@ -1,0 +1,6 @@
+--- symbol
+--- profile
+samples/count cpu/nanoseconds
+1 1000000
+2 2000000
+3 3000000

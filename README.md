@@ -34,6 +34,7 @@
 ## 使用
 
 详细使用指南请参考：
+- [VISUALIZATION_GUIDE.md](VISUALIZATION_GUIDE.md) - **pprof 可视化功能指南（新）**
 - [RUN_CONFIGURATION_GUIDE.md](RUN_CONFIGURATION_GUIDE.md) - Pprof 运行配置指南
 - [USAGE.md](USAGE.md) - 完整使用指南
 - [RUNTIME_SAMPLING_GUIDE.md](RUNTIME_SAMPLING_GUIDE.md) - 运行时采样指南
@@ -57,7 +58,22 @@
 - 更改工作目录时自动重新扫描
 - 所有自动填充的值都可以手动修改
 
-### 查看 pprof 文件
+### 可视化 pprof 文件
+
+**方式一：使用 go tool pprof（推荐）**
+
+右键点击 `.pprof` 文件，选择 **"使用 go tool pprof 可视化"**，支持多种可视化方式：
+
+- **Web 浏览器**：交互式可视化界面（火焰图、调用图、源码视图）
+- **文本报告**：快速查看热点函数
+- **调用图 SVG**：生成调用关系图
+- **火焰图 SVG**：生成火焰图
+- **Top 函数**：显示资源消耗最多的函数
+- **函数列表**：完整的函数统计信息
+
+详细说明请参考：[visualization_example.md](src/main/resources/examples/visualization_example.md)
+
+**方式二：查看 pprof 文件
 
 1. 在项目中右键点击 pprof 文件 (`.pb.gz`, `.pprof` 等格式)
 2. 选择 "Open with pprofview" 打开可视化界面

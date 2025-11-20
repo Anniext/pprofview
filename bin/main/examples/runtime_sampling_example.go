@@ -2,29 +2,27 @@ package main
 
 import (
 	"log"
-	"os"
-	"path/filepath"
-	"runtime"
-	"runtime/pprof"
-	"strconv"
 	"time"
 )
 
 // 运行时采样示例
-// 这个示例展示了如何在程序中读取 pprofview 插件设置的环境变量
-// 并自动启用相应的性能分析
+// 
+// 使用 pprofview 插件的运行时采样功能时，你的代码不需要做任何修改！
+// 插件会自动注入 pprof 初始化代码。
+//
+// 只需：
+// 1. 创建一个 pprof 运行配置
+// 2. 选择"运行时采样"模式
+// 3. 选择要采集的性能数据类型（CPU、Heap 等）
+// 4. 运行你的程序
+//
+// pprof 文件会自动生成在指定的输出目录中。
 
 func main() {
-	// 初始化 pprof
-	initPprof()
-	
 	// 你的程序逻辑
 	log.Println("程序开始执行...")
 	doWork()
 	log.Println("程序执行完成")
-	
-	// 等待一段时间以确保 CPU profiling 完成
-	time.Sleep(2 * time.Second)
 }
 
 // initPprof 初始化 pprof 性能分析

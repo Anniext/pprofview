@@ -12,9 +12,29 @@
     <extensions defaultExtensionNs="com.intellij">
         <!-- 插件启动活动 -->
         <postStartupActivity implementation="com.github.anniext.pprofview.startup.PluginStartupActivity"/>
+        
+        <!-- 项目级服务 -->
+        <projectService serviceImplementation="com.github.anniext.pprofview.services.PprofVisualizationService"/>
+        
+        <!-- 通知组 -->
+        <notificationGroup id="pprofview.notifications" displayType="BALLOON"/>
+        
+        <!-- 工具窗口 -->
+        <toolWindow id="pprof Output"
+                    anchor="bottom"
+                    icon="AllIcons.Toolwindows.ToolWindowRun"
+                    factoryClass="com.github.anniext.pprofview.toolWindow.PprofOutputToolWindow"/>
     </extensions>
 
     <actions>
-        <!-- 操作将在后续实现时添加 -->
+        <!-- pprof 文件可视化操作 -->
+        <action id="pprofview.VisualizeAction"
+                class="com.github.anniext.pprofview.actions.PprofVisualizeAction"
+                text="使用 go tool pprof 可视化"
+                description="使用 go tool pprof 对性能数据进行可视化分析"
+                icon="AllIcons.Actions.Profile">
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="after" relative-to-action="RevealIn"/>
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </action>
     </actions>
 </idea-plugin>
