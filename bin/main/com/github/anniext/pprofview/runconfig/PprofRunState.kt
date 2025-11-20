@@ -6,6 +6,8 @@ import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.process.ProcessHandlerFactory
 import com.intellij.execution.process.ProcessTerminatedListener
 import com.intellij.execution.runners.ExecutionEnvironment
+import com.intellij.openapi.util.io.FileUtil
+import java.io.File
 
 /**
  * Pprof 运行状态
@@ -42,12 +44,76 @@ class PprofRunState(
         
         // 添加 pprof 相关的环境变量
         if (configuration.enablePprof) {
-            commandLine.environment["GOMEMPROFILERATE"] = configuration.memProfileRate.toString()
-            // 可以添加更多 pprof 相关的配置
+            val outputDir = getOutputDirectory()
+            commandLine.environment["PPROF_OUTPUT_DIR"] = outputDir.absolutePath
+            
+            // 设置采样率
+            if (configuration.memProfileRate > 0) {
+                commandLine.environment["PPROF_MEM_RATE"] = configuration.memProfileRate.toString()
+            }
+            
+            if (configuration.blockProfileRate > 0) {
+                commandLine.environment["PPROF_BLOCK_RATE"] = configuration.blockProfileRate.toString()
+            }
+            
+            if (configuration.mutexProfileFraction > 0) {
+                commandLine.environment["PPROF_MUTEX_FRACTION"] = configuration.mutexProfileFraction.toString()
+            }
+            
+            // 设置 CPU 采样持续时间
+            commandLine.environment["PPROF_CPU_DURATION"] = configuration.cpuDuration.toString()
+            
+            // 设置启用的分析类型
+            configuration.profileTypes.split(",").forEach { typeStr ->
+                val type = PprofProfileType.fromString(typeStr.trim())
+                if (type != null) {
+                    when (type) {
+                        PprofProfileType.CPU -> {
+                            commandLine.environment["PPROF_ENABLE_CPU"] = "true"
+                        }
+                        PprofProfileType.HEAP -> {
+                            commandLine.environment["PPROF_ENABLE_HEAP"] = "true"
+                        }
+                        PprofProfileType.GOROUTINE -> {
+                            commandLine.environment["PPROF_ENABLE_GOROUTINE"] = "true"
+                        }
+                        PprofProfileType.BLOCK -> {
+                            commandLine.environment["PPROF_ENABLE_BLOCK"] = "true"
+                        }
+                        PprofProfileType.MUTEX -> {
+                            commandLine.environment["PPROF_ENABLE_MUTEX"] = "true"
+                        }
+                        PprofProfileType.ALLOCS -> {
+                            commandLine.environment["PPROF_ENABLE_ALLOCS"] = "true"
+                        }
+                        else -> {
+                            // 其他类型暂不支持
+                        }
+                    }
+                }
+            }
         }
         
         val processHandler = ProcessHandlerFactory.getInstance().createColoredProcessHandler(commandLine)
         ProcessTerminatedListener.attach(processHandler)
         return processHandler
+    }
+    
+    /**
+     * 获取输出目录
+     */
+    private fun getOutputDirectory(): File {
+        val dirPath = if (configuration.outputDirectory.isNotEmpty()) {
+            configuration.outputDirectory
+        } else {
+            FileUtil.getTempDirectory()
+        }
+        
+        val dir = File(dirPath)
+        if (!dir.exists()) {
+            dir.mkdirs()
+        }
+        
+        return dir
     }
 }

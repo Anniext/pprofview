@@ -8,6 +8,7 @@ import (
 	"os"
 	"runtime"
 	"runtime/pprof"
+	"strconv"
 	"time"
 )
 
@@ -26,9 +27,24 @@ func main() {
 
 	// 示例 2: 运行时采样模式
 	// 在运行配置中选择 "运行时采样" 模式，环境变量会自动设置
+	// 插件会设置以下环境变量：
+	// - PPROF_OUTPUT_DIR: 输出目录
+	// - PPROF_ENABLE_CPU: 是否启用 CPU 分析
+	// - PPROF_ENABLE_HEAP: 是否启用堆内存分析
+	// - PPROF_CPU_DURATION: CPU 采样持续时间（秒）
+	// - PPROF_MEM_RATE: 内存采样率
+	// - PPROF_BLOCK_RATE: 阻塞采样率
+	// - PPROF_MUTEX_FRACTION: 互斥锁采样率
+	
+	outputDir := os.Getenv("PPROF_OUTPUT_DIR")
+	if outputDir == "" {
+		outputDir = "." // 默认当前目录
+	}
+	
 	// CPU 分析
-	if cpuProfile := os.Getenv("CPUPROFILE"); cpuProfile != "" {
-		f, err := os.Create(cpuProfile)
+	if os.Getenv("PPROF_ENABLE_CPU") == "true" {
+		cpuFile := outputDir + "/cpu.pprof"
+		f, err := os.Create(cpuFile)
 		if err != nil {
 			log.Fatal("无法创建 CPU profile 文件:", err)
 		}
@@ -39,24 +55,132 @@ func main() {
 		}
 		defer pprof.StopCPUProfile()
 		
-		log.Println("CPU profiling 已启动，输出到:", cpuProfile)
+		log.Println("CPU profiling 已启动，输出到:", cpuFile)
+		
+		// 根据配置的持续时间自动停止
+		if durationStr := os.Getenv("PPROF_CPU_DURATION"); durationStr != "" {
+			if duration, err := time.ParseDuration(durationStr + "s"); err == nil {
+				go func() {
+					time.Sleep(duration)
+					pprof.StopCPUProfile()
+					f.Close()
+					log.Println("CPU profiling 已完成")
+				}()
+			}
+		}
 	}
 
-	// 内存分析
-	if memProfile := os.Getenv("MEMPROFILE"); memProfile != "" {
+	// 堆内存分析
+	if os.Getenv("PPROF_ENABLE_HEAP") == "true" {
+		// 设置内存采样率
+		if memRateStr := os.Getenv("PPROF_MEM_RATE"); memRateStr != "" {
+			if memRate, err := strconv.Atoi(memRateStr); err == nil {
+				runtime.MemProfileRate = memRate
+				log.Printf("内存采样率设置为: %d", memRate)
+			}
+		}
+		
 		defer func() {
-			f, err := os.Create(memProfile)
+			heapFile := outputDir + "/heap.pprof"
+			f, err := os.Create(heapFile)
 			if err != nil {
-				log.Fatal("无法创建内存 profile 文件:", err)
+				log.Fatal("无法创建堆内存 profile 文件:", err)
 			}
 			defer f.Close()
 			
 			runtime.GC() // 触发 GC 以获取最新的内存统计
 			if err := pprof.WriteHeapProfile(f); err != nil {
-				log.Fatal("无法写入内存 profile:", err)
+				log.Fatal("无法写入堆内存 profile:", err)
 			}
 			
-			log.Println("内存 profiling 已完成，输出到:", memProfile)
+			log.Println("堆内存 profiling 已完成，输出到:", heapFile)
+		}()
+	}
+	
+	// 协程分析
+	if os.Getenv("PPROF_ENABLE_GOROUTINE") == "true" {
+		defer func() {
+			goroutineFile := outputDir + "/goroutine.pprof"
+			f, err := os.Create(goroutineFile)
+			if err != nil {
+				log.Fatal("无法创建协程 profile 文件:", err)
+			}
+			defer f.Close()
+			
+			if err := pprof.Lookup("goroutine").WriteTo(f, 0); err != nil {
+				log.Fatal("无法写入协程 profile:", err)
+			}
+			
+			log.Println("协程 profiling 已完成，输出到:", goroutineFile)
+		}()
+	}
+	
+	// 阻塞分析
+	if os.Getenv("PPROF_ENABLE_BLOCK") == "true" {
+		if blockRateStr := os.Getenv("PPROF_BLOCK_RATE"); blockRateStr != "" {
+			if blockRate, err := strconv.Atoi(blockRateStr); err == nil {
+				runtime.SetBlockProfileRate(blockRate)
+				log.Printf("阻塞采样率设置为: %d", blockRate)
+			}
+		}
+		
+		defer func() {
+			blockFile := outputDir + "/block.pprof"
+			f, err := os.Create(blockFile)
+			if err != nil {
+				log.Fatal("无法创建阻塞 profile 文件:", err)
+			}
+			defer f.Close()
+			
+			if err := pprof.Lookup("block").WriteTo(f, 0); err != nil {
+				log.Fatal("无法写入阻塞 profile:", err)
+			}
+			
+			log.Println("阻塞 profiling 已完成，输出到:", blockFile)
+		}()
+	}
+	
+	// 互斥锁分析
+	if os.Getenv("PPROF_ENABLE_MUTEX") == "true" {
+		if mutexFractionStr := os.Getenv("PPROF_MUTEX_FRACTION"); mutexFractionStr != "" {
+			if mutexFraction, err := strconv.Atoi(mutexFractionStr); err == nil {
+				runtime.SetMutexProfileFraction(mutexFraction)
+				log.Printf("互斥锁采样率设置为: %d", mutexFraction)
+			}
+		}
+		
+		defer func() {
+			mutexFile := outputDir + "/mutex.pprof"
+			f, err := os.Create(mutexFile)
+			if err != nil {
+				log.Fatal("无法创建互斥锁 profile 文件:", err)
+			}
+			defer f.Close()
+			
+			if err := pprof.Lookup("mutex").WriteTo(f, 0); err != nil {
+				log.Fatal("无法写入互斥锁 profile:", err)
+			}
+			
+			log.Println("互斥锁 profiling 已完成，输出到:", mutexFile)
+		}()
+	}
+	
+	// 内存分配分析
+	if os.Getenv("PPROF_ENABLE_ALLOCS") == "true" {
+		defer func() {
+			allocsFile := outputDir + "/allocs.pprof"
+			f, err := os.Create(allocsFile)
+			if err != nil {
+				log.Fatal("无法创建内存分配 profile 文件:", err)
+			}
+			defer f.Close()
+			
+			runtime.GC()
+			if err := pprof.Lookup("allocs").WriteTo(f, 0); err != nil {
+				log.Fatal("无法写入内存分配 profile:", err)
+			}
+			
+			log.Println("内存分配 profiling 已完成，输出到:", allocsFile)
 		}()
 	}
 
