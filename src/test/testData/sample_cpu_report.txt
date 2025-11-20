@@ -1,0 +1,16 @@
+File: /tmp/cpu.pprof
+Type: cpu
+Time: Nov 20, 2025 at 10:00am (CST)
+Duration: 30.13s, Total samples = 28.50s (94.59%)
+Showing nodes accounting for 28.50s, 100% of 28.50s total
+      flat  flat%   sum%        cum   cum%
+    10.50s 36.84% 36.84%     10.50s 36.84%  main.fibonacci
+     5.25s 18.42% 55.26%      5.25s 18.42%  runtime.mallocgc
+     3.50s 12.28% 67.54%      3.50s 12.28%  runtime.scanobject
+     2.75s  9.65% 77.19%      2.75s  9.65%  runtime.memmove
+     2.00s  7.02% 84.21%      2.00s  7.02%  runtime.memclrNoHeapPointers
+     1.50s  5.26% 89.47%      1.50s  5.26%  runtime.heapBitsSetType
+     1.25s  4.39% 93.86%      1.25s  4.39%  runtime.nextFreeFast
+     0.75s  2.63% 96.49%      0.75s  2.63%  runtime.greyobject
+     0.50s  1.75% 98.25%      0.50s  1.75%  runtime.findObject
+     0.50s  1.75%   100%      0.50s  1.75%  runtime.writeHeapBits

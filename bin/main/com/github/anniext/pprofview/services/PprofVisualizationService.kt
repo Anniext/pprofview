@@ -229,9 +229,9 @@ class PprofVisualizationService(private val project: Project) {
             // 打开工具窗口
             val toolWindow = ToolWindowManager.getInstance(project).getToolWindow("pprof Output")
             toolWindow?.show {
-                // 获取输出面板并添加内容
+                // 获取输出面板并添加内容（带可视化）
                 val outputPanel = PprofOutputPanel.getInstance(project)
-                outputPanel?.addOutput(title, content)
+                outputPanel?.addOutputWithVisualization(title, content)
             }
             
             // 同时显示通知
@@ -239,7 +239,7 @@ class PprofVisualizationService(private val project: Project) {
             val preview = lines.joinToString("\n")
             showNotification(
                 title,
-                preview + if (content.lines().size > 5) "\n...\n查看 pprof Output 工具窗口获取完整输出" else "",
+                preview + if (content.lines().size > 5) "\n...\n查看 pprof Output 工具窗口获取完整输出和可视化图表" else "",
                 NotificationType.INFORMATION
             )
         }
