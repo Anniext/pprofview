@@ -21,7 +21,35 @@ class PprofRunState(
         val commandLine = GeneralCommandLine()
         commandLine.exePath = "go"
         commandLine.addParameter("run")
-        commandLine.addParameter(configuration.goFilePath)
+        
+        // 添加构建标志
+        if (configuration.goBuildFlags.isNotEmpty()) {
+            configuration.goBuildFlags.split(" ").forEach { flag ->
+                if (flag.isNotBlank()) {
+                    commandLine.addParameter(flag)
+                }
+            }
+        }
+        
+        // 根据运行种类添加参数
+        val runKind = PprofRunKind.fromString(configuration.runKind)
+        when (runKind) {
+            PprofRunKind.FILE -> {
+                if (configuration.filePath.isNotEmpty()) {
+                    commandLine.addParameter(configuration.filePath)
+                }
+            }
+            PprofRunKind.DIRECTORY -> {
+                if (configuration.directoryPath.isNotEmpty()) {
+                    commandLine.addParameter(configuration.directoryPath)
+                }
+            }
+            PprofRunKind.PACKAGE -> {
+                if (configuration.packagePath.isNotEmpty()) {
+                    commandLine.addParameter(configuration.packagePath)
+                }
+            }
+        }
         
         if (configuration.workingDirectory.isNotEmpty()) {
             commandLine.setWorkDirectory(configuration.workingDirectory)

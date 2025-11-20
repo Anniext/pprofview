@@ -44,18 +44,52 @@ class PprofConfigurationEditor : SettingsEditor<PprofConfiguration>() {
     private val customBuildFlagsField = JBTextField()
     
     // Go 程序配置
-    private val goFileField = TextFieldWithBrowseButton()
+    private val runKindComboBox = ComboBox(PprofRunKind.entries.toTypedArray())
+    private val fileField = TextFieldWithBrowseButton()
+    private val directoryField = TextFieldWithBrowseButton()
+    private val packageField = ComboBox<String>()
     private val workingDirectoryField = TextFieldWithBrowseButton()
     private val programArgumentsField = JBTextField()
     private val environmentVariablesField = JBTextField()
+    private val goBuildFlagsField = JBTextField()
+    
+    // 保存配置引用，用于智能填充
+    private var currentConfiguration: PprofConfiguration? = null
 
     init {
+        // 设置运行种类 ComboBox 渲染器
+        runKindComboBox.renderer = object : DefaultListCellRenderer() {
+            override fun getListCellRendererComponent(
+                list: JList<*>?,
+                value: Any?,
+                index: Int,
+                isSelected: Boolean,
+                cellHasFocus: Boolean
+            ): java.awt.Component {
+                val component = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus)
+                if (value is PprofRunKind) {
+                    text = value.displayName
+                }
+                return component
+            }
+        }
+        
+        // 设置软件包 ComboBox 为可编辑
+        packageField.isEditable = true
+        
         // 配置文件选择器
-        goFileField.addBrowseFolderListener(
+        fileField.addBrowseFolderListener(
             "选择 Go 文件",
-            "选择要分析的 Go 主文件",
+            "选择要运行的 Go 文件",
             null,
             FileChooserDescriptorFactory.createSingleFileDescriptor()
+        )
+        
+        directoryField.addBrowseFolderListener(
+            "选择目录",
+            "选择包含 main 包的目录",
+            null,
+            FileChooserDescriptorFactory.createSingleFolderDescriptor()
         )
         
         workingDirectoryField.addBrowseFolderListener(
@@ -117,12 +151,29 @@ class PprofConfigurationEditor : SettingsEditor<PprofConfiguration>() {
         
         advancedPanel.border = BorderFactory.createTitledBorder("高级配置")
         
+        // 创建运行配置面板
+        val runConfigPanel = JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.Y_AXIS)
+            border = BorderFactory.createTitledBorder("运行配置")
+        }
+        
+        // 添加运行种类选择和对应的输入框
+        val runKindPanel = FormBuilder.createFormBuilder()
+            .addLabeledComponent("运行种类:", runKindComboBox)
+            .addLabeledComponent("文件:", fileField)
+            .addLabeledComponent("目录:", directoryField)
+            .addLabeledComponent("软件包:", packageField)
+            .panel
+        
+        runConfigPanel.add(runKindPanel)
+        
         // 创建主面板
         val panel = FormBuilder.createFormBuilder()
-            .addLabeledComponent("Go 文件:", goFileField)
+            .addComponent(runConfigPanel)
             .addLabeledComponent("工作目录:", workingDirectoryField)
             .addLabeledComponent("程序参数:", programArgumentsField)
             .addLabeledComponent("环境变量:", environmentVariablesField)
+            .addLabeledComponent("Go 构建标志:", goBuildFlagsField)
             .addSeparator()
             .addComponent(enablePprofCheckBox)
             .addLabeledComponent("采集模式:", collectionModeComboBox)
@@ -135,14 +186,39 @@ class PprofConfigurationEditor : SettingsEditor<PprofConfiguration>() {
         
         panel.border = JBUI.Borders.empty(10)
         
+        // 添加运行种类变化监听器
+        runKindComboBox.addActionListener {
+            onRunKindChanged()
+        }
+        
+        // 添加工作目录变化监听器
+        workingDirectoryField.textField.document.addDocumentListener(object : javax.swing.event.DocumentListener {
+            override fun insertUpdate(e: javax.swing.event.DocumentEvent?) = onWorkingDirectoryChanged()
+            override fun removeUpdate(e: javax.swing.event.DocumentEvent?) = onWorkingDirectoryChanged()
+            override fun changedUpdate(e: javax.swing.event.DocumentEvent?) = onWorkingDirectoryChanged()
+        })
+        
         return panel
     }
 
     override fun resetEditorFrom(configuration: PprofConfiguration) {
-        goFileField.text = configuration.goFilePath
+        // 保存配置引用
+        currentConfiguration = configuration
+        
+        // 运行配置
+        val runKind = PprofRunKind.fromString(configuration.runKind)
+        runKindComboBox.selectedItem = runKind
+        
+        fileField.text = configuration.filePath
+        directoryField.text = configuration.directoryPath
+        packageField.selectedItem = configuration.packagePath
         workingDirectoryField.text = configuration.workingDirectory
         programArgumentsField.text = configuration.programArguments
         environmentVariablesField.text = configuration.environmentVariables
+        goBuildFlagsField.text = configuration.goBuildFlags
+        
+        // 初始化智能选项
+        initializeSmartOptions(configuration)
         
         enablePprofCheckBox.isSelected = configuration.enablePprof
         
@@ -173,11 +249,17 @@ class PprofConfigurationEditor : SettingsEditor<PprofConfiguration>() {
     }
 
     override fun applyEditorTo(configuration: PprofConfiguration) {
-        configuration.goFilePath = goFileField.text
+        // 运行配置
+        configuration.runKind = (runKindComboBox.selectedItem as? PprofRunKind)?.name ?: PprofRunKind.FILE.name
+        configuration.filePath = fileField.text
+        configuration.directoryPath = directoryField.text
+        configuration.packagePath = packageField.selectedItem?.toString() ?: packageField.editor.item?.toString() ?: ""
         configuration.workingDirectory = workingDirectoryField.text
         configuration.programArguments = programArgumentsField.text
         configuration.environmentVariables = environmentVariablesField.text
+        configuration.goBuildFlags = goBuildFlagsField.text
         
+        // Pprof 配置
         configuration.enablePprof = enablePprofCheckBox.isSelected
         configuration.collectionMode = (collectionModeComboBox.selectedItem as? PprofCollectionMode)?.name
             ?: PprofCollectionMode.NONE.name
@@ -204,5 +286,195 @@ class PprofConfigurationEditor : SettingsEditor<PprofConfiguration>() {
         configuration.blockProfileRate = blockProfileRateField.text.toIntOrNull() ?: 1
         
         configuration.customBuildFlags = customBuildFlagsField.text
+    }
+    
+    /**
+     * 初始化智能选项
+     */
+    private fun initializeSmartOptions(configuration: PprofConfiguration) {
+        val workingDir = configuration.workingDirectory.ifEmpty { 
+            configuration.project?.basePath ?: ""
+        }
+        
+        if (workingDir.isNotEmpty()) {
+            // 自动填充工作目录
+            if (workingDirectoryField.text.isEmpty()) {
+                workingDirectoryField.text = workingDir
+            }
+            
+            // 根据运行种类填充默认值
+            updateSmartDefaults(workingDir)
+        }
+    }
+    
+    /**
+     * 运行种类变化时的响应
+     */
+    private fun onRunKindChanged() {
+        updateRunKindFields()
+        
+        val workingDir = workingDirectoryField.text
+        if (workingDir.isNotEmpty()) {
+            updateSmartDefaults(workingDir)
+        }
+    }
+    
+    /**
+     * 工作目录变化时的响应
+     */
+    private fun onWorkingDirectoryChanged() {
+        val workingDir = workingDirectoryField.text
+        if (workingDir.isNotEmpty()) {
+            updateSmartDefaults(workingDir)
+        }
+    }
+    
+    /**
+     * 更新智能默认值
+     */
+    private fun updateSmartDefaults(workingDir: String) {
+        val runKind = runKindComboBox.selectedItem as? PprofRunKind ?: PprofRunKind.FILE
+        val workingDirFile = java.io.File(workingDir)
+        
+        if (!workingDirFile.exists() || !workingDirFile.isDirectory) {
+            return
+        }
+        
+        when (runKind) {
+            PprofRunKind.FILE -> {
+                // 自动查找 main.go 文件
+                if (fileField.text.isEmpty()) {
+                    val mainFile = findMainGoFile(workingDirFile)
+                    if (mainFile != null) {
+                        fileField.text = mainFile.absolutePath
+                    }
+                }
+            }
+            PprofRunKind.DIRECTORY -> {
+                // 自动设置为工作目录
+                if (directoryField.text.isEmpty()) {
+                    directoryField.text = workingDir
+                }
+            }
+            PprofRunKind.PACKAGE -> {
+                // 自动读取 go.mod 获取包列表
+                updatePackageList(workingDirFile)
+            }
+        }
+    }
+    
+    /**
+     * 查找 main.go 文件
+     */
+    private fun findMainGoFile(directory: java.io.File): java.io.File? {
+        // 首先查找 main.go
+        val mainGo = java.io.File(directory, "main.go")
+        if (mainGo.exists() && mainGo.isFile) {
+            return mainGo
+        }
+        
+        // 查找任何包含 main 函数的 .go 文件
+        val goFiles = directory.listFiles { file ->
+            file.isFile && file.name.endsWith(".go") && !file.name.endsWith("_test.go")
+        } ?: return null
+        
+        for (file in goFiles) {
+            try {
+                val content = file.readText()
+                if (content.contains("func main()") && content.contains("package main")) {
+                    return file
+                }
+            } catch (e: Exception) {
+                // 忽略读取错误
+            }
+        }
+        
+        return null
+    }
+    
+    /**
+     * 更新软件包列表
+     */
+    private fun updatePackageList(directory: java.io.File) {
+        val packages = mutableListOf<String>()
+        
+        // 读取 go.mod 获取模块路径
+        val goModFile = java.io.File(directory, "go.mod")
+        if (goModFile.exists()) {
+            try {
+                val content = goModFile.readText()
+                val modulePattern = Regex("""module\s+([^\s]+)""")
+                val match = modulePattern.find(content)
+                if (match != null) {
+                    val modulePath = match.groupValues[1]
+                    packages.add(modulePath)
+                    
+                    // 查找子包
+                    findSubPackages(directory, modulePath, packages)
+                }
+            } catch (e: Exception) {
+                // 忽略读取错误
+            }
+        }
+        
+        // 更新下拉列表
+        packageField.removeAllItems()
+        packages.forEach { packageField.addItem(it) }
+        
+        // 如果当前值不在列表中，添加它
+        val currentValue = currentConfiguration?.packagePath
+        if (!currentValue.isNullOrEmpty() && !packages.contains(currentValue)) {
+            packageField.addItem(currentValue)
+            packageField.selectedItem = currentValue
+        }
+    }
+    
+    /**
+     * 查找子包
+     */
+    private fun findSubPackages(directory: java.io.File, modulePath: String, packages: MutableList<String>) {
+        val subdirs = directory.listFiles { file -> 
+            file.isDirectory && !file.name.startsWith(".") && file.name != "vendor"
+        } ?: return
+        
+        for (subdir in subdirs) {
+            // 检查是否包含 .go 文件
+            val hasGoFiles = subdir.listFiles { file ->
+                file.isFile && file.name.endsWith(".go") && !file.name.endsWith("_test.go")
+            }?.isNotEmpty() ?: false
+            
+            if (hasGoFiles) {
+                val relativePath = subdir.relativeTo(directory).path.replace(java.io.File.separator, "/")
+                packages.add("$modulePath/$relativePath")
+            }
+            
+            // 递归查找子目录
+            findSubPackages(subdir, modulePath, packages)
+        }
+    }
+    
+    /**
+     * 根据运行种类更新输入框的可用性
+     */
+    private fun updateRunKindFields() {
+        val runKind = runKindComboBox.selectedItem as? PprofRunKind ?: PprofRunKind.FILE
+        
+        when (runKind) {
+            PprofRunKind.FILE -> {
+                fileField.isEnabled = true
+                directoryField.isEnabled = false
+                packageField.isEnabled = false
+            }
+            PprofRunKind.DIRECTORY -> {
+                fileField.isEnabled = false
+                directoryField.isEnabled = true
+                packageField.isEnabled = false
+            }
+            PprofRunKind.PACKAGE -> {
+                fileField.isEnabled = false
+                directoryField.isEnabled = false
+                packageField.isEnabled = true
+            }
+        }
     }
 }

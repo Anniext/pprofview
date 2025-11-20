@@ -15,6 +15,7 @@
 - 调用图展示
 - 性能数据统计分析
 - 支持多种性能分析类型 (CPU、Heap、Goroutine 等)
+- Pprof 运行配置，支持文件、目录、软件包三种运行方式
 - 提供完整的 pprof 使用示例代码
 <!-- Plugin description end -->
 
@@ -32,7 +33,29 @@
 
 ## 使用
 
-详细使用指南请参考：[USAGE.md](USAGE.md)
+详细使用指南请参考：
+- [RUN_CONFIGURATION_GUIDE.md](RUN_CONFIGURATION_GUIDE.md) - Pprof 运行配置指南
+- [USAGE.md](USAGE.md) - 完整使用指南
+- [RUNTIME_SAMPLING_GUIDE.md](RUNTIME_SAMPLING_GUIDE.md) - 运行时采样指南
+
+### 创建 Pprof 运行配置
+
+1. Run > Edit Configurations...
+2. 点击 "+" > "Pprof"
+3. 配置运行种类（支持智能填充）：
+   - **文件**：自动查找 main.go 或包含 main 函数的文件
+   - **目录**：自动使用工作目录
+   - **软件包**：自动读取 go.mod 并列出所有可用的包
+4. 配置 pprof 选项：
+   - 选择采集模式（运行时采样、HTTP 服务等）
+   - 勾选需要的分析类型（CPU、堆内存、协程等）
+   - 设置输出目录
+5. 运行程序，查看生成的 pprof 文件
+
+**智能功能**：
+- 切换运行种类时自动更新可用选项
+- 更改工作目录时自动重新扫描
+- 所有自动填充的值都可以手动修改
 
 ### 查看 pprof 文件
 
