@@ -47,6 +47,28 @@ class PprofVisualizationService(private val project: Project) {
     }
     
     /**
+     * 从文件名中提取报告类型
+     * 例如: cpu.pprof -> CPU, goroutine.pprof -> Goroutine
+     */
+    private fun extractReportType(file: VirtualFile): String {
+        val fileName = file.nameWithoutExtension
+        
+        // 常见的 pprof 类型
+        return when {
+            fileName.contains("cpu", ignoreCase = true) -> "CPU"
+            fileName.contains("goroutine", ignoreCase = true) -> "Goroutine"
+            fileName.contains("heap", ignoreCase = true) -> "Heap"
+            fileName.contains("allocs", ignoreCase = true) -> "Allocs"
+            fileName.contains("mutex", ignoreCase = true) -> "Mutex"
+            fileName.contains("block", ignoreCase = true) -> "Block"
+            fileName.contains("threadcreate", ignoreCase = true) -> "ThreadCreate"
+            else -> fileName.split("_", "-", ".").firstOrNull()?.replaceFirstChar { 
+                if (it.isLowerCase()) it.titlecase() else it.toString() 
+            } ?: "Profile"
+        }
+    }
+    
+    /**
      * 在浏览器中打开交互式可视化
      */
     private fun visualizeInBrowser(file: VirtualFile) {
@@ -105,7 +127,8 @@ class PprofVisualizationService(private val project: Project) {
      * 显示文本格式报告
      */
     private fun visualizeAsText(file: VirtualFile) {
-        executeAndShowOutput(file, listOf("-text"), "文本报告")
+        val reportType = extractReportType(file)
+        executeAndShowOutput(file, listOf("-text"), reportType)
     }
     
     /**
@@ -157,21 +180,24 @@ class PprofVisualizationService(private val project: Project) {
      * 显示 Top 函数
      */
     private fun showTop(file: VirtualFile) {
-        executeAndShowOutput(file, listOf("-top"), "Top 函数")
+        val reportType = extractReportType(file)
+        executeAndShowOutput(file, listOf("-top"), "$reportType - Top")
     }
     
     /**
      * 显示函数列表
      */
     private fun showList(file: VirtualFile) {
-        executeAndShowOutput(file, listOf("-list=."), "函数列表")
+        val reportType = extractReportType(file)
+        executeAndShowOutput(file, listOf("-list=."), "$reportType - 列表")
     }
     
     /**
      * 显示简要信息
      */
     private fun showPeek(file: VirtualFile) {
-        executeAndShowOutput(file, listOf("-peek=."), "简要信息")
+        val reportType = extractReportType(file)
+        executeAndShowOutput(file, listOf("-peek=."), "$reportType - 简要")
     }
     
     /**

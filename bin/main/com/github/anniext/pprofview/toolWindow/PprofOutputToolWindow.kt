@@ -35,6 +35,8 @@ class PprofOutputPanel(private val project: Project) : JPanel(BorderLayout()) {
     private val logger = thisLogger()
     private val tabbedPane = JBTabbedPane()
     private val outputs = mutableMapOf<String, JTextArea>()
+    // 记录每个标签页的报告类型，用于覆盖逻辑
+    private val tabReportTypes = mutableMapOf<String, Int>() // reportType -> tabIndex
     
     init {
         add(tabbedPane, BorderLayout.CENTER)
@@ -44,15 +46,20 @@ class PprofOutputPanel(private val project: Project) : JPanel(BorderLayout()) {
      * 添加输出标签页（文本）
      */
     fun addOutput(title: String, content: String) {
+        // 检查是否已存在同类型的标签页，如果存在则覆盖
+        removeExistingTab(title)
+        
         val textArea = JTextArea(content)
         textArea.isEditable = false
         textArea.font = java.awt.Font("Monospaced", java.awt.Font.PLAIN, 12)
         
         val scrollPane = JBScrollPane(textArea)
+        val tabIndex = tabbedPane.tabCount
         tabbedPane.addTab(title, scrollPane)
-        tabbedPane.selectedIndex = tabbedPane.tabCount - 1
+        tabbedPane.selectedIndex = tabIndex
         
         outputs[title] = textArea
+        tabReportTypes[title] = tabIndex
     }
     
     /**
@@ -60,31 +67,22 @@ class PprofOutputPanel(private val project: Project) : JPanel(BorderLayout()) {
      */
     fun addOutputWithVisualization(title: String, content: String) {
         try {
+            // 检查是否已存在同类型的标签页，如果存在则覆盖
+            removeExistingTab(title)
+            
             // 解析文本报告
             val parser = PprofTextParser()
             val report = parser.parse(content)
             
             if (report.entries.isNotEmpty()) {
-                // 创建包含文本和图表的面板
-                val panel = JPanel(BorderLayout())
-                
-                // 创建子选项卡
-                val subTabbedPane = JBTabbedPane()
-                
-                // 添加原始文本
-                val textArea = JTextArea(content)
-                textArea.isEditable = false
-                textArea.font = java.awt.Font("Monospaced", java.awt.Font.PLAIN, 12)
-                subTabbedPane.addTab("原始数据", JBScrollPane(textArea))
-                
-                // 添加图表
+                // 直接显示图表，不显示原始数据
                 val chartPanel = PprofChartPanel(report)
-                subTabbedPane.addTab("可视化", chartPanel)
                 
-                panel.add(subTabbedPane, BorderLayout.CENTER)
+                val tabIndex = tabbedPane.tabCount
+                tabbedPane.addTab(title, chartPanel)
+                tabbedPane.selectedIndex = tabIndex
                 
-                tabbedPane.addTab(title, panel)
-                tabbedPane.selectedIndex = tabbedPane.tabCount - 1
+                tabReportTypes[title] = tabIndex
                 
                 logger.info("已添加可视化标签页: $title")
             } else {
@@ -96,6 +94,48 @@ class PprofOutputPanel(private val project: Project) : JPanel(BorderLayout()) {
             // 降级到纯文本显示
             addOutput(title, content)
         }
+    }
+    
+    /**
+     * 移除已存在的同类型标签页
+     */
+    private fun removeExistingTab(reportType: String) {
+        val existingIndex = tabReportTypes[reportType]
+        if (existingIndex != null && existingIndex < tabbedPane.tabCount) {
+            // 检查标签页标题是否匹配（因为索引可能已经变化）
+            if (tabbedPane.getTitleAt(existingIndex) == reportType) {
+                logger.info("移除已存在的标签页: $reportType (索引: $existingIndex)")
+                tabbedPane.removeTabAt(existingIndex)
+                outputs.remove(reportType)
+                
+                // 更新其他标签页的索引
+                tabReportTypes.entries.forEach { entry ->
+                    if (entry.value > existingIndex) {
+                        tabReportTypes[entry.key] = entry.value - 1
+                    }
+                }
+            }
+        }
+        
+        // 如果索引不匹配，尝试通过标题查找
+        for (i in 0 until tabbedPane.tabCount) {
+            if (tabbedPane.getTitleAt(i) == reportType) {
+                logger.info("通过标题查找并移除标签页: $reportType (索引: $i)")
+                tabbedPane.removeTabAt(i)
+                outputs.remove(reportType)
+                
+                // 更新索引
+                tabReportTypes.entries.forEach { entry ->
+                    if (entry.value > i) {
+                        tabReportTypes[entry.key] = entry.value - 1
+                    }
+                }
+                break
+            }
+        }
+        
+        // 清理映射
+        tabReportTypes.remove(reportType)
     }
     
     /**
